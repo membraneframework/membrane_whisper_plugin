@@ -26,8 +26,6 @@ defmodule Membrane.Template.Mixfile do
     ]
   end
 
-  def application, do: []
-
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_env), do: ["lib"]
 
