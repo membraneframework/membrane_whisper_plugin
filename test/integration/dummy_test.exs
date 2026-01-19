@@ -39,7 +39,7 @@ defmodule Membrane.Whisper.Integration.DummyTest do
     spec = [
       child(:source, %Membrane.File.Source{location: @input_file})
       |> child(:parser, %Membrane.RawAudioParser{stream_format: ra_format})
-      |> child(:whisper_filter, %Membrane.Whisper{
+      |> child(:whisper_filter, %Membrane.Whisper.Filter{
         input_stream_format: ra_format,
         output_stream_format: ra_format,
         serving: load_whisper_serving()
@@ -53,14 +53,25 @@ defmodule Membrane.Whisper.Integration.DummyTest do
 
     assert_end_of_stream(pipeline_pid, :sink, :input, 20_000)
 
-    # Check if at least one transcript was generated
     assert_sink_event(pipeline_pid, :testing_sink, %Membrane.Whisper.TranscriptEvent{
       whisper_output: %{
-        text: text
+        text:
+          " Adventure 1, a scandal in Bohemia from the adventures of Sherlock Holmes by Sir Arthur Conan Doyle.",
+        start_timestamp_seconds: +0.0,
+        end_timestamp_seconds: 7.0
       }
     })
 
-    assert is_bitstring(text) and String.length(text) > 0
+    assert_sink_event(pipeline_pid, :testing_sink, %Membrane.Whisper.TranscriptEvent{
+      whisper_output: %{
+        text:
+          " This is a Librevox recording. All Librevox recordings are in the public domain, for more information or to volunteer, please visit librivox.org.",
+        start_timestamp_seconds: 7.0,
+        end_timestamp_seconds: 19.89
+      }
+    })
+
+    # TODO: finish listing the events
 
     assert File.read!(@input_file) == File.read!(@output_file)
     File.rm!(@output_file)

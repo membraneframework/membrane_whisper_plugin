@@ -1,4 +1,4 @@
-defmodule Membrane.Whisper do
+defmodule Membrane.Whisper.Filter do
   @moduledoc """
   Element that wraps a `Bumblebee.Audio.speech_to_text_whisper` serving, producing transcripts of the input audio.
 
@@ -11,18 +11,13 @@ defmodule Membrane.Whisper do
 
   alias Membrane.RawAudio
 
-  @supported_sample_format [:f32le]
-  @supported_channels [1]
-
   def_output_pad :output,
     accepted_format:
-      %RawAudio{sample_format: format, channels: channels}
-      when format in @supported_sample_format and channels in @supported_channels
+      %RawAudio{sample_format: :f32le, channels: 1}
 
   def_input_pad :input,
     accepted_format:
-      %RawAudio{sample_format: format, channels: channels}
-      when format in @supported_sample_format and channels in @supported_channels
+      %RawAudio{sample_format: :f32le, channels: 1}
 
   def_options input_stream_format: [
                 spec: RawAudio.t() | nil,
@@ -54,69 +49,6 @@ defmodule Membrane.Whisper do
                 The options `chunk_num_seconds` and `stream` correspond to enabling input and output streaming.
                 """
               ]
-
-  defmodule TranscriptEvent do
-    @moduledoc """
-    Event used to send the transcript and the timestamps predicted by Whisper.
-    """
-
-    @derive Membrane.EventProtocol
-    defstruct [:whisper_output]
-  end
-
-  defmodule ServingServer do
-    @moduledoc """
-    This GenServer is used to convert the audio data to a representation expected by the Whisper serving.
-
-    Bumblebee's Whisper streaming API expects an Elixir Stream input, and produces an Elixir Stream output.
-    To provide an Elixir Stream, the serving is wrapped in a separate process with its own mailbox
-    that `Membrane.Whisper` can `send` buffers to.
-
-    When a transcript is ready it is sent back to `Membrane.Whisper`.
-
-    Graceful termination is handled by halting the Stream to flush the rest of the transcript from the serving.
-    """
-
-    use GenServer
-
-    def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
-
-    @impl true
-    def init(serving: serving), do: {:ok, %{serving: serving}}
-
-    @impl true
-    def handle_cast({:serving_start, parent_filter_pid}, state) do
-      stream =
-        Stream.repeatedly(fn ->
-          send(parent_filter_pid, {:serving_ready, self()})
-
-          receive do
-            {:serving_receive, buffer} -> Nx.from_binary(buffer, :f32)
-            :halt -> :halt
-          end
-        end)
-        # NOTE: this could be a single Stream.resource call to allow halting
-        |> Stream.transform(nil, fn x, nil ->
-          case x do
-            :halt -> {:halt, nil}
-            tensor -> {[tensor], nil}
-          end
-        end)
-
-      Nx.Serving.run(
-        state.serving,
-        stream
-      )
-      |> Enum.each(fn output ->
-        send(parent_filter_pid, {:serving_output, output})
-      end)
-
-      # Processing only finishes if the Stream received an explicit `:halt` from the filter.
-      # Sending a message back so the filter knows it can EOS.
-      send(parent_filter_pid, :serving_finished)
-      {:noreply, state}
-    end
-  end
 
   @impl true
   def handle_buffer(_pad, buffer, _ctx, state) do
@@ -150,7 +82,7 @@ defmodule Membrane.Whisper do
     {:ok, server} =
       Membrane.UtilitySupervisor.start_link_child(
         ctx.utility_supervisor,
-        {ServingServer, [serving: serving]}
+        {Membrane.Whisper.ServingServer, [serving: serving]}
       )
 
     :ok = GenServer.cast(server, {:serving_start, self()})
@@ -185,7 +117,7 @@ defmodule Membrane.Whisper do
 
   @impl true
   def handle_info({:serving_output, whisper_output}, _ctx, state) do
-    {[event: {:output, %TranscriptEvent{whisper_output: whisper_output}}], state}
+    {[event: {:output, %Membrane.Whisper.TranscriptEvent{whisper_output: whisper_output}}], state}
   end
 
   @impl true

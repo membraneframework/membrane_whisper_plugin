@@ -1,0 +1,53 @@
+defmodule Membrane.Whisper.ServingServer do
+  @moduledoc false
+
+  # This GenServer is used to convert the audio data to a representation expected by the Whisper serving.
+
+  # Bumblebee's Whisper streaming API expects an Elixir Stream input, and produces an Elixir Stream output.
+  # To provide an Elixir Stream, the serving is wrapped in a separate process with its own mailbox
+  # that `Membrane.Whisper` can `send` buffers to.
+
+  # When a transcript is ready it is sent back to `Membrane.Whisper`.
+
+  # Graceful termination is handled by halting the Stream to flush the rest of the transcript from the serving.
+
+  use GenServer
+
+  def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
+
+  @impl true
+  def init(serving: serving), do: {:ok, %{serving: serving}}
+
+  @impl true
+  def handle_cast({:serving_start, parent_filter_pid}, state) do
+    stream =
+      Stream.repeatedly(fn ->
+        send(parent_filter_pid, {:serving_ready, self()})
+
+        receive do
+          {:serving_receive, buffer} -> Nx.from_binary(buffer, :f32)
+          :halt -> :halt
+        end
+      end)
+      # NOTE: this could be a single Stream.resource call to allow halting
+      |> Stream.transform(nil, fn x, nil ->
+        case x do
+          :halt -> {:halt, nil}
+          tensor -> {[tensor], nil}
+        end
+      end)
+
+    Nx.Serving.run(
+      state.serving,
+      stream
+    )
+    |> Enum.each(fn output ->
+      send(parent_filter_pid, {:serving_output, output})
+    end)
+
+    # Processing only finishes if the Stream received an explicit `:halt` from the filter.
+    # Sending a message back so the filter knows it can EOS.
+    send(parent_filter_pid, :serving_finished)
+    {:noreply, state}
+  end
+end
