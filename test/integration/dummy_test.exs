@@ -8,10 +8,11 @@ defmodule Membrane.Whisper.Integration.DummyTest do
   alias Membrane.Testing.Pipeline
 
   def load_whisper_serving do
-    {:ok, whisper} = Bumblebee.load_model({:hf, "openai/whisper-tiny"})
-    {:ok, featurizer} = Bumblebee.load_featurizer({:hf, "openai/whisper-tiny"})
-    {:ok, tokenizer} = Bumblebee.load_tokenizer({:hf, "openai/whisper-tiny"})
-    {:ok, generation_config} = Bumblebee.load_generation_config({:hf, "openai/whisper-tiny"})
+    whisper_local_dir = "./priv/openai/whisper-tiny/"
+    {:ok, whisper} = Bumblebee.load_model({:local, whisper_local_dir})
+    {:ok, featurizer} = Bumblebee.load_featurizer({:local, whisper_local_dir})
+    {:ok, tokenizer} = Bumblebee.load_tokenizer({:local, whisper_local_dir})
+    {:ok, generation_config} = Bumblebee.load_generation_config({:local, whisper_local_dir})
 
     serving =
       Bumblebee.Audio.speech_to_text_whisper(
@@ -62,5 +63,6 @@ defmodule Membrane.Whisper.Integration.DummyTest do
     assert is_bitstring(text) and String.length(text) > 0
 
     assert File.read!(@input_file) == File.read!(@output_file)
+    File.rm!(@output_file)
   end
 end
