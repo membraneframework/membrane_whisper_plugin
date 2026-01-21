@@ -1,6 +1,6 @@
 defmodule Membrane.Whisper.TranscriberFilter do
   @moduledoc """
-  Element that wraps a `Bumblebee.Audio.speech_to_text_whisper` serving, producing transcripts of the input audio.
+  Element that wraps a `Bumblebee.Audio.speech_to_text_whisper/2` serving, producing transcripts of the input audio.
 
   The serving must be provided by the user. For details on the configuration of the serving, see the description of the `serving` option of this element.
   """
@@ -22,7 +22,7 @@ defmodule Membrane.Whisper.TranscriberFilter do
   def_options serving: [
                 spec: Nx.Serving.t(),
                 description: """
-                The result of a call to `Bumblebee.Audio.speech_to_text_whisper`, with the following options set:
+                The result of a call to `Bumblebee.Audio.speech_to_text_whisper/2`, with the following options set:
 
                 ```elixir
                   Bumblebee.Audio.speech_to_text_whisper(
