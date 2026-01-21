@@ -1,12 +1,12 @@
-defmodule Membrane.Template.Mixfile do
+defmodule Membrane.Whisper.Mixfile do
   use Mix.Project
 
   @version "0.1.0"
-  @github_url "https://github.com/membraneframework/membrane_template_plugin"
+  @github_url "https://github.com/membraneframework/membrane_whisper_plugin"
 
   def project do
     [
-      app: :membrane_template_plugin,
+      app: :membrane_whisper_plugin,
       version: @version,
       elixir: "~> 1.13",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -15,11 +15,11 @@ defmodule Membrane.Template.Mixfile do
       dialyzer: dialyzer(),
 
       # hex
-      description: "Template Plugin for Membrane Framework",
+      description: "Membrane plugin for OpenAI's Whisper model",
       package: package(),
 
       # docs
-      name: "Membrane Template plugin",
+      name: "Membrane Whisper Plugin",
       source_url: @github_url,
       docs: docs(),
       homepage_url: "https://membrane.stream"
@@ -75,7 +75,7 @@ defmodule Membrane.Template.Mixfile do
       extras: ["README.md", "LICENSE"],
       formatters: ["html"],
       source_ref: "v#{@version}",
-      nest_modules_by_prefix: [Membrane.Template]
+      nest_modules_by_prefix: [Membrane.Whisper]
     ]
   end
 end
