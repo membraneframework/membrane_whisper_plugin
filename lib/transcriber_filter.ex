@@ -36,12 +36,6 @@ defmodule Membrane.Whisper.TranscriberFilter do
               ]
 
   @impl true
-  def handle_buffer(:input = _pad, buffer, _ctx, state) do
-    send(state.serving_pid, {:serving_receive, buffer.payload})
-    {[buffer: {:output, buffer}], state}
-  end
-
-  @impl true
   def handle_init(ctx, %__MODULE__{serving: serving} = options) do
     {:ok, server} =
       Membrane.UtilitySupervisor.start_link_child(
@@ -68,13 +62,9 @@ defmodule Membrane.Whisper.TranscriberFilter do
   end
 
   @impl true
-  def handle_end_of_stream(:input, _ctx, state) do
-    {[], %{state | finished?: true}}
-  end
-
-  @impl true
-  def handle_info({:serving_output, whisper_output}, _ctx, state) do
-    {[event: {:output, struct!(Membrane.Whisper.TranscriptEvent, whisper_output)}], state}
+  def handle_buffer(:input = _pad, buffer, _ctx, state) do
+    send(state.serving_pid, {:serving_receive, buffer.payload})
+    {[buffer: {:output, buffer}], state}
   end
 
   @impl true
@@ -93,7 +83,17 @@ defmodule Membrane.Whisper.TranscriberFilter do
   end
 
   @impl true
+  def handle_info({:serving_output, whisper_output}, _ctx, state) do
+    {[event: {:output, struct!(Membrane.Whisper.TranscriptEvent, whisper_output)}], state}
+  end
+
+  @impl true
   def handle_info(:serving_finished, _ctx, state) do
     {[end_of_stream: :output], state}
+  end
+
+  @impl true
+  def handle_end_of_stream(:input, _ctx, state) do
+    {[], %{state | finished?: true}}
   end
 end
