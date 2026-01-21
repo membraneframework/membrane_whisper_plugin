@@ -8,6 +8,7 @@ defmodule Membrane.Whisper.Integration.DummyTest do
   alias Membrane.Testing.Pipeline
   alias Membrane.Whisper.TranscriptEvent
 
+  @spec load_whisper_serving() :: Nx.Serving.t()
   def load_whisper_serving do
     whisper_local_dir = "./priv/openai/whisper-tiny/"
     {:ok, whisper} = Bumblebee.load_model({:local, whisper_local_dir})
