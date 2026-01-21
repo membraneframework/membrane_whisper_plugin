@@ -19,22 +19,7 @@ defmodule Membrane.Whisper.TranscriberFilter do
     demand_unit: :buffers,
     accepted_format: %RawAudio{sample_format: :f32le, channels: 1}
 
-  def_options input_stream_format: [
-                spec: RawAudio.t() | nil,
-                default: nil,
-                description: """
-                Stream format for the input pad. If set to nil (default value),
-                stream format is assumed to be received through the pad. If explicitly set to some
-                stream format, it cannot be changed by stream format received through the pad.
-                """
-              ],
-              output_stream_format: [
-                spec: RawAudio.t(),
-                description: """
-                Audio stream format for output pad
-                """
-              ],
-              serving: [
+  def_options serving: [
                 spec: Nx.Serving.t(),
                 description: """
                 The result of a call to `Bumblebee.Audio.speech_to_text_whisper`, with the following options set:
@@ -58,17 +43,6 @@ defmodule Membrane.Whisper.TranscriberFilter do
 
   @impl true
   def handle_init(ctx, %__MODULE__{serving: serving} = options) do
-    case options.input_stream_format do
-      %RawAudio{} -> :ok
-      nil -> :ok
-      _other -> raise ":input_stream_format must be nil or %RawAudio{}"
-    end
-
-    case options.output_stream_format do
-      %RawAudio{} -> :ok
-      _other -> raise ":output_stream_format must be %RawAudio{}"
-    end
-
     {:ok, server} =
       Membrane.UtilitySupervisor.start_link_child(
         ctx.utility_supervisor,
@@ -88,14 +62,9 @@ defmodule Membrane.Whisper.TranscriberFilter do
   end
 
   @impl true
-  def handle_stream_format(:input, %RawAudio{} = _stream_format, _ctx, state) do
-    {[stream_format: {:output, state.output_stream_format}], state}
-  end
-
-  @impl true
   def handle_playing(_ctx, state) do
     :ok = GenServer.cast(state.server_pid, {:serving_start, self()})
-    {[stream_format: {:output, state.output_stream_format}], Map.delete(state, :server_pid)}
+    {[], Map.delete(state, :server_pid)}
   end
 
   @impl true
