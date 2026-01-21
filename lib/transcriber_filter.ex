@@ -11,12 +11,12 @@ defmodule Membrane.Whisper.TranscriberFilter do
 
   alias Membrane.RawAudio
 
-  def_output_pad :output,
-    accepted_format: %RawAudio{sample_format: :f32le, channels: 1}
-
   def_input_pad :input,
     flow_control: :manual,
     demand_unit: :buffers,
+    accepted_format: %RawAudio{sample_format: :f32le, channels: 1}
+
+  def_output_pad :output,
     accepted_format: %RawAudio{sample_format: :f32le, channels: 1}
 
   def_options serving: [
