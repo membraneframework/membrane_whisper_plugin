@@ -12,12 +12,12 @@ defmodule Membrane.Whisper.TranscriberFilter do
   alias Membrane.RawAudio
 
   def_output_pad :output,
-    accepted_format:
-      %RawAudio{sample_format: :f32le, channels: 1}
+    accepted_format: %RawAudio{sample_format: :f32le, channels: 1}
 
   def_input_pad :input,
-    accepted_format:
-      %RawAudio{sample_format: :f32le, channels: 1}
+    flow_control: :manual,
+    demand_unit: :buffers,
+    accepted_format: %RawAudio{sample_format: :f32le, channels: 1}
 
   def_options input_stream_format: [
                 spec: RawAudio.t() | nil,
@@ -51,19 +51,9 @@ defmodule Membrane.Whisper.TranscriberFilter do
               ]
 
   @impl true
-  def handle_buffer(_pad, buffer, _ctx, state) do
-    new_state =
-      case state.serving_status do
-        {:ready, pid} ->
-          send(pid, {:serving_receive, buffer.payload})
-          %{state | serving_status: :busy}
-
-        :busy ->
-          # NOTE: store a Stream in state and concat instead?
-          %{state | acc: state.acc ++ [buffer.payload]}
-      end
-
-    {[buffer: {:output, buffer}], new_state}
+  def handle_buffer(:input = _pad, buffer, _ctx, state) do
+    send(state.serving_pid, {:serving_receive, buffer.payload})
+    {[buffer: {:output, buffer}], state}
   end
 
   @impl true
@@ -78,21 +68,19 @@ defmodule Membrane.Whisper.TranscriberFilter do
       %RawAudio{} -> :ok
       _other -> raise ":output_stream_format must be %RawAudio{}"
     end
-
     {:ok, server} =
       Membrane.UtilitySupervisor.start_link_child(
         ctx.utility_supervisor,
         {Membrane.Whisper.ServingServer, [serving: serving]}
       )
 
-    :ok = GenServer.cast(server, {:serving_start, self()})
 
     state =
       options
       |> Map.from_struct()
       |> Map.merge(%{
-        serving_status: :busy,
-        acc: [],
+        server_pid: server,
+        serving_pid: nil,
         finished?: false
       })
 
@@ -100,14 +88,14 @@ defmodule Membrane.Whisper.TranscriberFilter do
   end
 
   @impl true
-  def handle_stream_format(:input, %RawAudio{} = stream_format, _ctx, state) do
-    state = %{state | input_stream_format: stream_format}
+  def handle_stream_format(:input, %RawAudio{} = _stream_format, _ctx, state) do
     {[stream_format: {:output, state.output_stream_format}], state}
   end
 
   @impl true
   def handle_playing(_ctx, state) do
-    {[stream_format: {:output, state.output_stream_format}], state}
+    :ok = GenServer.cast(state.server_pid, {:serving_start, self()})
+    {[stream_format: {:output, state.output_stream_format}], Map.delete(state, :server_pid)}
   end
 
   @impl true
@@ -122,24 +110,12 @@ defmodule Membrane.Whisper.TranscriberFilter do
 
   @impl true
   def handle_info({:serving_ready, pid}, _ctx, state) do
-    # Fires when serving is ready to process another buffer
-    case {state.acc, state.finished?} do
-      # Filter is waiting for more buffers to provide the serving with.
-      # Saving PID to state, will send a buffer in `handle_buffer` as soon as it becomes available.
-      {[], false} ->
-        {[], %{state | serving_status: {:ready, pid}}}
-
-      # Received EOS and no more buffers are to be processed.
-      # Signal to the Stream running in `ServingServer`
-      # that it can flush the rest of the transcript.
-      {[], true} ->
-        send(pid, :halt)
-        {[], state}
-
-      # Buffer ready for processing, send and wait for next ping from serving
-      {[buffer | rest], _finished?} ->
-        send(pid, {:serving_receive, buffer})
-        {[], %{state | acc: rest, serving_status: :busy}}
+    state = %{state | serving_pid: pid}
+    if state.finished? do
+      send(state.serving_pid, :halt)
+      {[], state}
+    else
+      {[demand: {:input, 1}], state}
     end
   end
 
