@@ -6,6 +6,7 @@ defmodule Membrane.Whisper.Integration.DummyTest do
 
   alias Membrane.RawAudio
   alias Membrane.Testing.Pipeline
+  alias Membrane.Whisper.TranscriptEvent
 
   def load_whisper_serving do
     whisper_local_dir = "./priv/openai/whisper-tiny/"
@@ -39,9 +40,7 @@ defmodule Membrane.Whisper.Integration.DummyTest do
     spec = [
       child(:source, %Membrane.File.Source{location: @input_file})
       |> child(:parser, %Membrane.RawAudioParser{stream_format: ra_format})
-      |> child(:whisper_filter, %Membrane.Whisper.Filter{
-        input_stream_format: ra_format,
-        output_stream_format: ra_format,
+      |> child(:whisper_filter, %Membrane.Whisper.TranscriberFilter{
         serving: load_whisper_serving()
       })
       |> child(:tee, Membrane.Tee)
@@ -53,25 +52,40 @@ defmodule Membrane.Whisper.Integration.DummyTest do
 
     assert_end_of_stream(pipeline_pid, :sink, :input, 20_000)
 
-    assert_sink_event(pipeline_pid, :testing_sink, %Membrane.Whisper.TranscriptEvent{
-      whisper_output: %{
-        text:
-          " Adventure 1, a scandal in Bohemia from the adventures of Sherlock Holmes by Sir Arthur Conan Doyle.",
-        start_timestamp_seconds: +0.0,
-        end_timestamp_seconds: 7.0
-      }
-    })
-
-    assert_sink_event(pipeline_pid, :testing_sink, %Membrane.Whisper.TranscriptEvent{
-      whisper_output: %{
-        text:
-          " This is a Librevox recording. All Librevox recordings are in the public domain, for more information or to volunteer, please visit librivox.org.",
-        start_timestamp_seconds: 7.0,
-        end_timestamp_seconds: 19.89
-      }
-    })
-
-    # TODO: finish listing the events
+    [
+      assert_sink_event(pipeline_pid, :testing_sink, %TranscriptEvent{
+        whisper_output: %{
+          text:
+            " Adventure 1, a scandal in Bohemia from the adventures of Sherlock Holmes by Sir Arthur Conan Doyle.",
+          start_timestamp_seconds: +0.0,
+          end_timestamp_seconds: 7.0
+        }
+      }),
+      assert_sink_event(pipeline_pid, :testing_sink, %TranscriptEvent{
+        whisper_output: %{
+          text:
+            " This is a Librevox recording. All Librevox recordings are in the public domain, for more information or to volunteer, please visit librivox.org.",
+          start_timestamp_seconds: 7.0,
+          end_timestamp_seconds: 19.89
+        }
+      }),
+      assert_sink_event(pipeline_pid, :testing_sink, %TranscriptEvent{
+        whisper_output: %{
+          text:
+            " Recording by Ruth Golden. A scan. recording by rescoating, a scandal in Bohemia.",
+          start_timestamp_seconds: 19.89,
+          end_timestamp_seconds: 25.0
+        }
+      }),
+      assert_sink_event(pipeline_pid, :testing_sink, %TranscriptEvent{
+        whisper_output: %{
+          text:
+            " To Sherlock Holmes, she is always the woman. I have seldom heard him mention her under any other name. In his eyes she eclipses and predominates the whole of her sex. It was not that he felt any emotion akin to love for iron-eyedler. All emotions and that one particularly were apparent to his cold, precise, but admirably balanced mind. He was, I take it.",
+          start_timestamp_seconds: 25.0,
+          end_timestamp_seconds: 59.89399999999998
+        }
+      })
+    ]
 
     assert File.read!(@input_file) == File.read!(@output_file)
     File.rm!(@output_file)
