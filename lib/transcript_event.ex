@@ -4,5 +4,5 @@ defmodule Membrane.Whisper.TranscriptEvent do
   """
 
   @derive Membrane.EventProtocol
-  defstruct [:whisper_output]
+  defstruct [:text, :start_timestamp_seconds, :end_timestamp_seconds]
 end

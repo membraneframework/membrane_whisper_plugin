@@ -74,7 +74,7 @@ defmodule Membrane.Whisper.TranscriberFilter do
 
   @impl true
   def handle_info({:serving_output, whisper_output}, _ctx, state) do
-    {[event: {:output, %Membrane.Whisper.TranscriptEvent{whisper_output: whisper_output}}], state}
+    {[event: {:output, struct!(Membrane.Whisper.TranscriptEvent, whisper_output)}], state}
   end
 
   @impl true
