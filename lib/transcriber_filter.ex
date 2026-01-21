@@ -1,4 +1,4 @@
-defmodule Membrane.Whisper.Filter do
+defmodule Membrane.Whisper.TranscriberFilter do
   @moduledoc """
   Element that wraps a `Bumblebee.Audio.speech_to_text_whisper` serving, producing transcripts of the input audio.
 
