@@ -68,12 +68,12 @@ defmodule Membrane.Whisper.TranscriberFilter do
       %RawAudio{} -> :ok
       _other -> raise ":output_stream_format must be %RawAudio{}"
     end
+
     {:ok, server} =
       Membrane.UtilitySupervisor.start_link_child(
         ctx.utility_supervisor,
         {Membrane.Whisper.ServingServer, [serving: serving]}
       )
-
 
     state =
       options
@@ -109,8 +109,12 @@ defmodule Membrane.Whisper.TranscriberFilter do
   end
 
   @impl true
-  def handle_info({:serving_ready, pid}, _ctx, state) do
-    state = %{state | serving_pid: pid}
+  def handle_info({:serving_pid, pid}, _ctx, state) do
+    {[], %{state | serving_pid: pid}}
+  end
+
+  @impl true
+  def handle_info(:serving_ready, _ctx, state) do
     if state.finished? do
       send(state.serving_pid, :halt)
       {[], state}

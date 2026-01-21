@@ -21,21 +21,21 @@ defmodule Membrane.Whisper.ServingServer do
   @impl true
   def handle_cast({:serving_start, parent_filter_pid}, state) do
     stream =
-      Stream.repeatedly(fn ->
-        send(parent_filter_pid, {:serving_ready, self()})
+      Stream.resource(
+        fn ->
+          send(parent_filter_pid, {:serving_pid, self()})
+          nil
+        end,
+        fn state ->
+          send(parent_filter_pid, :serving_ready)
 
-        receive do
-          {:serving_receive, buffer} -> Nx.from_binary(buffer, :f32)
-          :halt -> :halt
-        end
-      end)
-      # NOTE: this could be a single Stream.resource call to allow halting
-      |> Stream.transform(nil, fn x, nil ->
-        case x do
-          :halt -> {:halt, nil}
-          tensor -> {[tensor], nil}
-        end
-      end)
+          receive do
+            {:serving_receive, buffer} -> {[Nx.from_binary(buffer, :f32)], state}
+            :halt -> {:halt, state}
+          end
+        end,
+        fn _state -> nil end
+      )
 
     Nx.Serving.run(
       state.serving,
