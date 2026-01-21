@@ -11,6 +11,10 @@ defmodule Membrane.Whisper.Integration.DummyTest do
   @spec load_whisper_serving() :: Nx.Serving.t()
   def load_whisper_serving do
     whisper_local_dir = "./priv/openai/whisper-tiny/"
+
+    File.ls(whisper_local_dir) |> IO.inspect()
+    File.read!(whisper_local_dir <> "tokenizer_config.json") |> IO.inspect()
+
     {:ok, whisper} = Bumblebee.load_model({:local, whisper_local_dir})
     {:ok, featurizer} = Bumblebee.load_featurizer({:local, whisper_local_dir})
     {:ok, tokenizer} = Bumblebee.load_tokenizer({:local, whisper_local_dir})
