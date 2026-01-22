@@ -62,7 +62,7 @@ defmodule Membrane.Whisper.TranscriberFilter do
     {:ok, server} =
       Membrane.UtilitySupervisor.start_link_child(
         ctx.utility_supervisor,
-        {Membrane.Whisper.ServingServer, [serving: serving]}
+        {Membrane.Whisper.ModelServer, [serving: serving]}
       )
 
     state =

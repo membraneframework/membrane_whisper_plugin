@@ -1,4 +1,4 @@
-defmodule Membrane.Whisper.ServingServer do
+defmodule Membrane.Whisper.ModelServer do
   @moduledoc false
 
   # This GenServer is used to convert the audio data to a representation expected by the Whisper serving.
