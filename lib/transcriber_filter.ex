@@ -23,15 +23,37 @@ defmodule Membrane.Whisper.TranscriberFilter do
                 spec: Nx.Serving.t(),
                 description: """
                 The result of a call to `Bumblebee.Audio.speech_to_text_whisper/4`, with the following options set:
+                - `:stream`: Must be `true`. Enables output streaming, e.g. it makes calls to `Nx.Serving.run/2` return an Elixir Stream that will return outputs from Whisper.
+                - `:chunk_num_seconds`: Must be set. Enables long-form transcription by splitting the input into chunks of the given length. This means that calls to the serving with `Nx.Serving.run/2` will only accept enumerable input when `:chunk_num_seconds` is set.
 
+                Example of creating a compatible serving:
                 ```elixir
-                  Bumblebee.Audio.speech_to_text_whisper(
-                    ...,
+                  hf_repo = "openai/whisper-tiny"
+
+                  {:ok, whisper} = Bumblebee.load_model({:hf, hf_repo})
+                  {:ok, featurizer} = Bumblebee.load_featurizer({:hf, hf_repo})
+                  {:ok, tokenizer} = Bumblebee.load_tokenizer({:hf, hf_repo})
+                  {:ok, generation_config} = Bumblebee.load_generation_config({:hf, hf_repo})
+
+                  serving = Bumblebee.Audio.speech_to_text_whisper(
+                    whisper,
+                    featurizer,
+                    tokenizer,
+                    generation_config,
                     stream: true,
-                    chunk_num_seconds: chunk_num_seconds
+                    chunk_num_seconds: 10
                   )
-                ```
-                The options `chunk_num_seconds` and `stream` correspond to enabling input and output streaming.
+
+                  serving_with_timestamps = Bumblebee.Audio.speech_to_text_whisper(
+                    whisper,
+                    featurizer,
+                    tokenizer,
+                    generation_config,
+                    stream: true,
+                    chunk_num_seconds: 10,
+                    timestamps: :segments
+                  )
+                  ```
                 """
               ]
 
