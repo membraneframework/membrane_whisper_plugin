@@ -1,4 +1,4 @@
-defmodule Membrane.Whisper.Integration.DummyTest do
+defmodule Membrane.Whisper.Integration.SimpleTest do
   use ExUnit.Case, async: false
 
   import Membrane.Testing.Assertions
@@ -9,7 +9,7 @@ defmodule Membrane.Whisper.Integration.DummyTest do
   alias Membrane.Whisper.TranscriptEvent
 
   @spec load_whisper_serving() :: Nx.Serving.t()
-  def load_whisper_serving do
+  defp load_whisper_serving do
     hf_repo = "openai/whisper-tiny"
 
     {:ok, whisper} = Bumblebee.load_model({:hf, hf_repo})
@@ -26,7 +26,6 @@ defmodule Membrane.Whisper.Integration.DummyTest do
         defn_options: [compiler: EXLA],
         stream: true,
         chunk_num_seconds: 10,
-        client_batch_size: 1,
         timestamps: :segments
       )
 
@@ -36,7 +35,7 @@ defmodule Membrane.Whisper.Integration.DummyTest do
   @input_file "test/fixtures/sherlock_1min.raw"
   @output_file "test/fixtures/output.raw"
 
-  test "Audio buffers are forwarded without change and at least one non-empty transcript is sent as event" do
+  test "audio buffers are forwarded without change and transcripts are sent as events" do
     ra_format = %RawAudio{channels: 1, sample_rate: 16_000, sample_format: :f32le}
 
     spec = [
@@ -52,7 +51,7 @@ defmodule Membrane.Whisper.Integration.DummyTest do
 
     {:ok, _supervisor_pid, pipeline_pid} = Pipeline.start(spec: spec)
 
-    assert_end_of_stream(pipeline_pid, :sink, :input, 20_000)
+    assert_end_of_stream(pipeline_pid, :sink, :input, 10_000)
 
     [
       assert_sink_event(pipeline_pid, :testing_sink, %TranscriptEvent{
