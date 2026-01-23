@@ -14,10 +14,10 @@ defmodule Membrane.Whisper.TranscriberFilter do
   def_input_pad :input,
     flow_control: :manual,
     demand_unit: :buffers,
-    accepted_format: %RawAudio{sample_format: :f32le, channels: 1}
+    accepted_format: %RawAudio{sample_format: :f32le, channels: 1, sample_rate: 16_000}
 
   def_output_pad :output,
-    accepted_format: %RawAudio{sample_format: :f32le, channels: 1}
+    accepted_format: %RawAudio{sample_format: :f32le, channels: 1, sample_rate: 16_000}
 
   def_options serving: [
                 spec: Nx.Serving.t(),
