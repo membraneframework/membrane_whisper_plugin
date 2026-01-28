@@ -4,7 +4,6 @@ defmodule Membrane.Whisper.Integration.SimpleTest do
   import Membrane.Testing.Assertions
   import Membrane.ChildrenSpec
 
-  alias Membrane.RawAudio
   alias Membrane.Testing.Pipeline
   alias Membrane.Whisper.TranscriptEvent
 
@@ -36,7 +35,7 @@ defmodule Membrane.Whisper.Integration.SimpleTest do
   @output_file "test/fixtures/output.raw"
 
   test "audio buffers are forwarded without change and transcripts are sent as events" do
-    ra_format = %RawAudio{channels: 1, sample_rate: 16_000, sample_format: :f32le}
+    ra_format = %Membrane.RawAudio{sample_format: :f32le, channels: 1, sample_rate: 16_000}
 
     spec = [
       child(:source, %Membrane.File.Source{location: @input_file})
