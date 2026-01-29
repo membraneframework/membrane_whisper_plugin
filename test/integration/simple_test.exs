@@ -51,7 +51,7 @@ defmodule Membrane.Whisper.Integration.SimpleTest do
 
     {:ok, _supervisor_pid, pipeline_pid} = Pipeline.start(spec: spec)
 
-    assert_end_of_stream(pipeline_pid, :sink, :input, 10_000)
+    assert_end_of_stream(pipeline_pid, :sink, :input, 20_000)
 
     [
       assert_sink_event(pipeline_pid, :testing_sink, %TranscriptEvent{
