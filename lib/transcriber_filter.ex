@@ -17,6 +17,8 @@ defmodule Membrane.Whisper.TranscriberFilter do
     accepted_format: %RawAudio{sample_format: :f32le, channels: 1, sample_rate: 16_000}
 
   def_output_pad :output,
+    flow_control: :manual,
+    demand_unit: :buffers,
     accepted_format: %RawAudio{sample_format: :f32le, channels: 1, sample_rate: 16_000}
 
   def_options serving: [
@@ -58,19 +60,14 @@ defmodule Membrane.Whisper.TranscriberFilter do
               ]
 
   @impl true
-  def handle_init(ctx, %__MODULE__{serving: serving} = options) do
-    {:ok, server} =
-      Membrane.UtilitySupervisor.start_link_child(
-        ctx.utility_supervisor,
-        {Membrane.Whisper.ModelServer, [serving: serving]}
-      )
-
+  def handle_init(_ctx, %__MODULE__{serving: _serving} = options) do
     state =
       options
       |> Map.from_struct()
       |> Map.merge(%{
-        server_pid: server,
         serving_pid: nil,
+        serving_ready?: false,
+        output_ready?: false,
         finished?: false
       })
 
@@ -78,30 +75,50 @@ defmodule Membrane.Whisper.TranscriberFilter do
   end
 
   @impl true
-  def handle_playing(_ctx, state) do
-    :ok = GenServer.cast(state.server_pid, {:serving_start, self()})
-    {[], Map.delete(state, :server_pid)}
+  def handle_setup(ctx, %{serving: serving} = state) do
+    {:ok, _server} =
+      Membrane.UtilitySupervisor.start_link_child(
+        ctx.utility_supervisor,
+        {Membrane.Whisper.ModelServer, %{serving: serving, parent_pid: self()}}
+      )
+
+    {[], state}
   end
 
   @impl true
-  def handle_buffer(:input = _pad, buffer, _ctx, state) do
+  def handle_demand(:output = _pad, _size, :buffers, _ctx, state) do
+    maybe_demand = if state.serving_ready?, do: [demand: {:input, 1}], else: []
+    {maybe_demand, %{state | output_ready?: true}}
+  end
+
+  @impl true
+  def handle_buffer(
+        :input = _pad,
+        buffer,
+        _ctx,
+        %{serving_ready?: true, output_ready?: true} = state
+      ) do
     send(state.serving_pid, {:serving_receive, buffer.payload})
-    {[buffer: {:output, buffer}], state}
+
+    {[buffer: {:output, buffer}, redemand: :output],
+     %{state | serving_ready?: false, output_ready?: false}}
+  end
+
+  @impl true
+  def handle_info(:serving_ready, _ctx, %{finished?: false} = state) do
+    maybe_demand = if state.output_ready?, do: [demand: {:input, 1}], else: []
+    {maybe_demand, %{state | serving_ready?: true}}
+  end
+
+  @impl true
+  def handle_info(:serving_ready, _ctx, %{finished?: true} = state) do
+    send(state.serving_pid, :halt)
+    {[], state}
   end
 
   @impl true
   def handle_info({:serving_pid, pid}, _ctx, state) do
     {[], %{state | serving_pid: pid}}
-  end
-
-  @impl true
-  def handle_info(:serving_ready, _ctx, state) do
-    if state.finished? do
-      send(state.serving_pid, :halt)
-      {[], state}
-    else
-      {[demand: {:input, 1}], state}
-    end
   end
 
   @impl true

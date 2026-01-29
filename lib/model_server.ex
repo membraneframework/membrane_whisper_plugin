@@ -13,22 +13,25 @@ defmodule Membrane.Whisper.ModelServer do
 
   use GenServer
 
-  @spec start_link([{:serving, Nx.Serving.t()}]) :: :ignore | {:error, any()} | {:ok, pid()}
+  @spec start_link(%{serving: Nx.Serving.t(), parent_pid: pid()}) :: :ignore | {:error, any()} | {:ok, pid()}
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
 
   @impl true
-  def init(serving: serving), do: {:ok, %{serving: serving}}
+  def init(opts) do
+    GenServer.cast(self(), :serving_start)
+    {:ok, opts}
+  end
 
   @impl true
-  def handle_cast({:serving_start, parent_filter_pid}, state) do
+  def handle_cast(:serving_start, %{serving: serving, parent_pid: parent_pid} = state) do
     stream =
       Stream.resource(
         fn ->
-          send(parent_filter_pid, {:serving_pid, self()})
+          send(parent_pid, {:serving_pid, self()})
           nil
         end,
         fn state ->
-          send(parent_filter_pid, :serving_ready)
+          send(parent_pid, :serving_ready)
 
           receive do
             {:serving_receive, buffer} -> {[Nx.from_binary(buffer, :f32)], state}
@@ -39,16 +42,16 @@ defmodule Membrane.Whisper.ModelServer do
       )
 
     Nx.Serving.run(
-      state.serving,
+      serving,
       stream
     )
     |> Enum.each(fn output ->
-      send(parent_filter_pid, {:serving_output, output})
+      send(parent_pid, {:serving_output, output})
     end)
 
     # Processing only finishes if the Stream received an explicit `:halt` from the filter.
     # Sending a message back so the filter knows it can EOS.
-    send(parent_filter_pid, :serving_finished)
+    send(parent_pid, :serving_finished)
     {:noreply, state}
   end
 end
