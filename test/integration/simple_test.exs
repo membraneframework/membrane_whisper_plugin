@@ -31,18 +31,21 @@ defmodule Membrane.Whisper.Integration.SimpleTest do
     serving
   end
 
+  setup do
+    {:ok, serving: load_whisper_serving()}
+  end
+
   @input_file "test/fixtures/sherlock_1min.raw"
   @output_file "test/fixtures/output.raw"
 
-  test "audio buffers are forwarded without change and transcripts are sent as events" do
+  test "audio buffers are forwarded without change and transcripts are sent as events", ctx do
     ra_format = %Membrane.RawAudio{sample_format: :f32le, channels: 1, sample_rate: 16_000}
-    serving = load_whisper_serving()
 
     spec = [
       child(:source, %Membrane.File.Source{location: @input_file})
       |> child(:parser, %Membrane.RawAudioParser{stream_format: ra_format})
       |> child(:whisper_filter, %Membrane.Whisper.TranscriberFilter{
-        serving: serving
+        serving: ctx.serving
       })
       |> child(:tee, Membrane.Tee)
       |> child(:sink, %Membrane.File.Sink{location: @output_file}),
@@ -51,7 +54,7 @@ defmodule Membrane.Whisper.Integration.SimpleTest do
 
     {:ok, _supervisor_pid, pipeline_pid} = Pipeline.start(spec: spec)
 
-    assert_end_of_stream(pipeline_pid, :sink, :input, 20_000)
+    assert_end_of_stream(pipeline_pid, :sink, :input, 10_000)
 
     [
       assert_sink_event(pipeline_pid, :testing_sink, %TranscriptEvent{
