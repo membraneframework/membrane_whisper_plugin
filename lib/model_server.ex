@@ -13,7 +13,8 @@ defmodule Membrane.Whisper.ModelServer do
 
   use GenServer
 
-  @spec start_link(%{serving: Nx.Serving.t(), parent_pid: pid()}) :: :ignore | {:error, any()} | {:ok, pid()}
+  @spec start_link(%{serving: Nx.Serving.t(), parent_pid: pid()}) ::
+          :ignore | {:error, any()} | {:ok, pid()}
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
 
   @impl true
