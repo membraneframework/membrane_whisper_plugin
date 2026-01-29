@@ -32,7 +32,7 @@ defmodule Membrane.Whisper.ModelServer do
           nil
         end,
         fn state ->
-          send(parent_pid, :serving_ready)
+          send(parent_pid, :serving_demand)
 
           receive do
             {:serving_receive, buffer} -> {[Nx.from_binary(buffer, :f32)], state}

@@ -66,8 +66,8 @@ defmodule Membrane.Whisper.TranscriberFilter do
       |> Map.from_struct()
       |> Map.merge(%{
         serving_pid: nil,
-        serving_ready?: false,
-        output_ready?: false,
+        serving_demand?: false,
+        output_demand?: false,
         finished?: false
       })
 
@@ -87,8 +87,8 @@ defmodule Membrane.Whisper.TranscriberFilter do
 
   @impl true
   def handle_demand(:output = _pad, _size, :buffers, _ctx, state) do
-    maybe_demand = if state.serving_ready?, do: [demand: {:input, 1}], else: []
-    {maybe_demand, %{state | output_ready?: true}}
+    maybe_demand = if state.serving_demand?, do: [demand: {:input, 1}], else: []
+    {maybe_demand, %{state | output_demand?: true}}
   end
 
   @impl true
@@ -96,22 +96,22 @@ defmodule Membrane.Whisper.TranscriberFilter do
         :input = _pad,
         buffer,
         _ctx,
-        %{serving_ready?: true, output_ready?: true} = state
+        %{serving_demand?: true, output_demand?: true} = state
       ) do
     send(state.serving_pid, {:serving_receive, buffer.payload})
 
     {[buffer: {:output, buffer}, redemand: :output],
-     %{state | serving_ready?: false, output_ready?: false}}
+     %{state | serving_demand?: false, output_demand?: false}}
   end
 
   @impl true
-  def handle_info(:serving_ready, _ctx, %{finished?: false} = state) do
-    maybe_demand = if state.output_ready?, do: [demand: {:input, 1}], else: []
-    {maybe_demand, %{state | serving_ready?: true}}
+  def handle_info(:serving_demand, _ctx, %{finished?: false} = state) do
+    maybe_demand = if state.output_demand?, do: [demand: {:input, 1}], else: []
+    {maybe_demand, %{state | serving_demand?: true}}
   end
 
   @impl true
-  def handle_info(:serving_ready, _ctx, %{finished?: true} = state) do
+  def handle_info(:serving_demand, _ctx, %{finished?: true} = state) do
     send(state.serving_pid, :halt)
     {[], state}
   end
