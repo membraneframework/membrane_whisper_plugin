@@ -36,12 +36,13 @@ defmodule Membrane.Whisper.Integration.SimpleTest do
 
   test "audio buffers are forwarded without change and transcripts are sent as events" do
     ra_format = %Membrane.RawAudio{sample_format: :f32le, channels: 1, sample_rate: 16_000}
+    serving = load_whisper_serving()
 
     spec = [
       child(:source, %Membrane.File.Source{location: @input_file})
       |> child(:parser, %Membrane.RawAudioParser{stream_format: ra_format})
       |> child(:whisper_filter, %Membrane.Whisper.TranscriberFilter{
-        serving: load_whisper_serving()
+        serving: serving
       })
       |> child(:tee, Membrane.Tee)
       |> child(:sink, %Membrane.File.Sink{location: @output_file}),
