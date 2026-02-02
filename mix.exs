@@ -33,7 +33,7 @@ defmodule Membrane.Whisper.Mixfile do
 
   defp deps do
     [
-      {:membrane_core, "~> 1.2.6"},
+      {:membrane_core, "~> 1.0"},
       {:membrane_raw_audio_format, "~> 0.12.0"},
       {:bumblebee, "~> 0.6.0"},
       {:exla, ">= 0.0.0"},
