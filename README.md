@@ -22,7 +22,17 @@ end
 
 ## Examples
 
-TODO
+For a demo streaming and transcribing a static `.mp4`, see `examples/live_mp4_processing.exs`:
+
+```sh
+$ elixir examples/live_mp4_processing.exs
+```
+
+You can also try it out yourself - see `examples/live_mic_processing.exs` which uses portaudio to stream your microphone's input directly to Whisper and prints the resulting transcript directly to console:
+
+```sh
+$ elixir examples/live_mic_processing.exs
+```
 
 ## Copyright and License
 
