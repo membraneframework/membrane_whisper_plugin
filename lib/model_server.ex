@@ -20,11 +20,11 @@ defmodule Membrane.Whisper.ModelServer do
   @impl true
   def init(opts) do
     GenServer.cast(self(), :serving_start)
-    {:ok, opts}
+    {:ok, opts, {:continue, :serving_start}}
   end
 
   @impl true
-  def handle_cast(:serving_start, %{serving: serving, parent_pid: parent_pid} = state) do
+  def handle_continue(:serving_start, %{serving: serving, parent_pid: parent_pid} = state) do
     stream =
       Stream.resource(
         fn ->
