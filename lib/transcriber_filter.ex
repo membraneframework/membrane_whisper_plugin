@@ -60,7 +60,7 @@ defmodule Membrane.Whisper.TranscriberFilter do
               ]
 
   @impl true
-  def handle_init(_ctx, %__MODULE__{serving: _serving} = options) do
+  def handle_init(_ctx, options) do
     state =
       options
       |> Map.from_struct()
@@ -86,9 +86,10 @@ defmodule Membrane.Whisper.TranscriberFilter do
   end
 
   @impl true
-  def handle_demand(:output = _pad, _size, :buffers, _ctx, state) do
-    maybe_demand = if state.serving_demand?, do: [demand: {:input, 1}], else: []
-    {maybe_demand, %{state | output_demand?: true}}
+  def handle_demand(:output = _pad, _size, :buffers, ctx, state) do
+    state = %{state | output_demand?: true}
+    actions = maybe_demand(state.output_demand?, state.serving_demand?, ctx.pads)
+    {actions, state}
   end
 
   @impl true
@@ -105,9 +106,10 @@ defmodule Membrane.Whisper.TranscriberFilter do
   end
 
   @impl true
-  def handle_info(:serving_demand, _ctx, %{finished?: false} = state) do
-    maybe_demand = if state.output_demand?, do: [demand: {:input, 1}], else: []
-    {maybe_demand, %{state | serving_demand?: true}}
+  def handle_info(:serving_demand, ctx, %{finished?: false} = state) do
+    state = %{state | serving_demand?: true}
+    actions = maybe_demand(state.output_demand?, state.serving_demand?, ctx.pads)
+    {actions, state}
   end
 
   @impl true
@@ -135,4 +137,15 @@ defmodule Membrane.Whisper.TranscriberFilter do
   def handle_end_of_stream(:input, _ctx, state) do
     {[], %{state | finished?: true}}
   end
+
+  @spec maybe_demand(
+          output_demand? :: boolean(),
+          serving_demand? :: boolean(),
+          pads :: %{atom() => Membrane.Element.PadData.t()}
+        ) :: list(Membrane.Element.Action.demand())
+  # We only demand on the input pad if it doesn't already have an awaiting demand to satisfy
+  defp maybe_demand(true, true, %{input: %Membrane.Element.PadData{demand: 0}}),
+    do: [demand: {:input, 1}]
+
+  defp maybe_demand(_output_demand?, _serving_demand?, _input_demand), do: []
 end
