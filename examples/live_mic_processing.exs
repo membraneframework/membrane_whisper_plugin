@@ -72,16 +72,7 @@ defmodule Whisper.Demo.Mic.LivePipeline do
 
     {[spec: spec], %{}}
   end
-
-  @impl true
-  def handle_child_notification(:processing_finished, :boombox_sink, _ctx, state) do
-    {[terminate: :normal], state}
-  end
 end
 
-{:ok, supervisor, _pipeline} = Membrane.Pipeline.start_link(Whisper.Demo.Mic.LivePipeline, [])
-Process.monitor(supervisor)
-
-receive do
-  {:DOWN, _ref, :process, _pid, _reason} -> :ok
-end
+{:ok, _supervisor, _pipeline} = Membrane.Pipeline.start_link(Whisper.Demo.Mic.LivePipeline, [])
+Process.sleep(:infinity)
