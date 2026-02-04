@@ -45,6 +45,17 @@ defmodule Membrane.Whisper.TranscriberFilter do
                     stream: true,
                     chunk_num_seconds: 10
                   )
+                  ```
+
+                  One could also enable timestamp prediction by the model, though this will impact the result by producing transcripts of segments of varying length,
+                  e.g. a transcript of 7 seconds of audio followed by a transcript of 13 seconds of audio, etc.
+                  ```elixir
+                  hf_repo = "openai/whisper-tiny"
+
+                  {:ok, whisper} = Bumblebee.load_model({:hf, hf_repo})
+                  {:ok, featurizer} = Bumblebee.load_featurizer({:hf, hf_repo})
+                  {:ok, tokenizer} = Bumblebee.load_tokenizer({:hf, hf_repo})
+                  {:ok, generation_config} = Bumblebee.load_generation_config({:hf, hf_repo})
 
                   serving_with_timestamps = Bumblebee.Audio.speech_to_text_whisper(
                     whisper,
@@ -56,6 +67,8 @@ defmodule Membrane.Whisper.TranscriberFilter do
                     timestamps: :segments
                   )
                   ```
+
+                  For other useful options, see `Bumblebee.Audio.speech_to_text_whisper/4`.
                 """
               ]
 
