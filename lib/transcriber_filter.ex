@@ -2,6 +2,10 @@ defmodule Membrane.Whisper.TranscriberFilter do
   @moduledoc """
   Element that wraps a `Bumblebee.Audio.speech_to_text_whisper/4` serving, producing transcripts of the input audio.
 
+  The transcripts are sent via the `:output` pad along with the audio buffers, as `Membrane.Whisper.TranscriptEvent` events.
+  A sequence of audio buffers is followed by an event containing the transcript for said sequence, e.g.:
+  `<audio frames 0s - 10s> <event with transciption of 0s-10s> <audio frames 10s-20s> <event with transcription of 10s-20s> <audio frames 20s-30s> ...`
+
   The serving must be provided by the user. For details on the configuration of the serving, see the description of the `serving` option of this element.
   """
 
@@ -27,6 +31,7 @@ defmodule Membrane.Whisper.TranscriberFilter do
                 The result of a call to `Bumblebee.Audio.speech_to_text_whisper/4`, with the following options set:
                 - `:stream`: Must be `true`. Enables output streaming, e.g. it makes calls to `Nx.Serving.run/2` return an Elixir Stream that will return outputs from Whisper.
                 - `:chunk_num_seconds`: Must be set. Enables long-form transcription by splitting the input into chunks of the given length. This means that calls to the serving with `Nx.Serving.run/2` will only accept enumerable input when `:chunk_num_seconds` is set.
+                - `:context_num_seconds`: Must be set to 0 for proper synchronisation with streamed audio.
 
                 Example of creating a compatible serving:
                 ```elixir
@@ -43,7 +48,8 @@ defmodule Membrane.Whisper.TranscriberFilter do
                     tokenizer,
                     generation_config,
                     stream: true,
-                    chunk_num_seconds: 10
+                    chunk_num_seconds: 10,
+                    context_num_seconds: 0
                   )
                   ```
 
@@ -64,6 +70,7 @@ defmodule Membrane.Whisper.TranscriberFilter do
                     generation_config,
                     stream: true,
                     chunk_num_seconds: 10,
+                    context_num_seconds: 0,
                     timestamps: :segments
                   )
                   ```
