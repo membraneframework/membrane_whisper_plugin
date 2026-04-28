@@ -55,7 +55,7 @@ defmodule Membrane.Whisper.ModelServer do
     catch
       # TODO: This can be removed along with the exit trap when
       # https://github.com/elixir-nx/bumblebee/pull/454 is released
-      :exit, {{%ArgumentError{}, _}, {Nx.Serving, :streaming, []}} -> :ok
+      :exit, {{%ArgumentError{}, _stacktrace}, {Nx.Serving, :streaming, []}} -> :ok
     end
 
     # Processing only finishes if the Stream received an explicit `:halt` from the filter.
