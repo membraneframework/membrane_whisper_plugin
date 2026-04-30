@@ -19,7 +19,6 @@ defmodule Membrane.Whisper.ModelServer do
 
   @impl true
   def init(opts) do
-    GenServer.cast(self(), :serving_start)
     {:ok, opts, {:continue, :serving_start}}
   end
 
