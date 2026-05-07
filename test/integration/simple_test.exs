@@ -48,7 +48,6 @@ defmodule Membrane.Whisper.Integration.SimpleTest do
       |> child(:whisper_filter, %Membrane.Whisper.TranscriberFilter{
         serving: ctx.serving
       })
-      |> child(:debug, %Membrane.Debug.Filter{handle_event: &IO.inspect(&1, label: "transcript")})
       |> child(:tee, Membrane.Tee)
       |> child(:sink, %Membrane.File.Sink{location: @output_file}),
       get_child(:tee) |> child(:testing_sink, Membrane.Testing.Sink)
@@ -56,7 +55,7 @@ defmodule Membrane.Whisper.Integration.SimpleTest do
 
     {:ok, _supervisor_pid, pipeline_pid} = Pipeline.start(spec: spec)
 
-    assert_end_of_stream(pipeline_pid, :sink, :input, 120_000)
+    assert_end_of_stream(pipeline_pid, :sink, :input)
 
     [
       assert_sink_event(pipeline_pid, :testing_sink, %TranscriptEvent{
