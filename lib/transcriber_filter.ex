@@ -237,7 +237,6 @@ defmodule Membrane.Whisper.TranscriberFilter do
         _ctx,
         %{finished?: finished?, server_pid: server_pid} = state
       ) do
-        IO.inspect("down abnormal reason #{inspect(finished?)}")
     if finished? do
       drain(%{state | serving_finished?: true})
     else
