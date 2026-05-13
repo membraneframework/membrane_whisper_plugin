@@ -18,15 +18,7 @@ defmodule Membrane.Whisper.ModelServer do
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
 
   @impl true
-  def init(opts) do
-    Process.flag(:trap_exit, true)
-    {:ok, opts, {:continue, :serving_start}}
-  end
-
-  @impl true
-  def handle_info({:EXIT, _pid, _reason}, state) do
-    {:stop, :normal, state}
-  end
+  def init(opts), do: {:ok, opts, {:continue, :serving_start}}
 
   @impl true
   def handle_continue(:serving_start, %{serving: serving, parent_pid: parent_pid} = state) do
@@ -47,16 +39,9 @@ defmodule Membrane.Whisper.ModelServer do
         fn state -> state end
       )
 
-    try do
-      Nx.Serving.run(serving, stream)
-      |> Enum.each(fn output ->
-        send(parent_pid, {:serving_output, output})
-      end)
-    catch
-      # TODO: This can be removed along with the exit trap when
-      # https://github.com/elixir-nx/bumblebee/pull/454 is released
-      :exit, {{%ArgumentError{}, _stacktrace}, {Nx.Serving, :streaming, []}} -> :ok
-    end
+    serving
+    |> Nx.Serving.run(stream)
+    |> Enum.each(&send(parent_pid, {:serving_output, &1}))
 
     # Processing only finishes if the Stream received an explicit `:halt` from the filter.
     # Sending a message back so the filter knows it can EOS.

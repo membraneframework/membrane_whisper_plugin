@@ -157,7 +157,20 @@ defmodule Membrane.Whisper.TranscriberFilter do
   end
 
   @impl true
-  def handle_info({:DOWN, _ref, :process, server_pid, reason}, _ctx, %{finished?: finished?, server_pid: server_pid}) do
+  def handle_info(
+        {:DOWN, _ref, :process, server_pid, :normal},
+        _ctx,
+        %{server_pid: server_pid} = state
+      ) do
+    {[], state}
+  end
+
+  @impl true
+  def handle_info(
+        {:DOWN, _ref, :process, server_pid, reason},
+        _ctx,
+        %{finished?: finished?, server_pid: server_pid} = state
+      ) do
     if finished? do
       {[end_of_stream: :output], state}
     else
