@@ -85,6 +85,7 @@ defmodule Membrane.Whisper.TranscriberFilter do
       options
       |> Map.from_struct()
       |> Map.merge(%{
+        server_pid: nil,
         serving_pid: nil,
         serving_demand?: false,
         output_demand?: false,
@@ -96,13 +97,15 @@ defmodule Membrane.Whisper.TranscriberFilter do
 
   @impl true
   def handle_setup(ctx, %{serving: serving} = state) do
-    {:ok, _server} =
-      Membrane.UtilitySupervisor.start_link_child(
+    {:ok, server_pid} =
+      Membrane.UtilitySupervisor.start_child(
         ctx.utility_supervisor,
         {Membrane.Whisper.ModelServer, %{serving: serving, parent_pid: self()}}
       )
 
-    {[], state}
+    Process.monitor(server_pid)
+
+    {[], %{state | server_pid: server_pid}}
   end
 
   @impl true
@@ -151,6 +154,15 @@ defmodule Membrane.Whisper.TranscriberFilter do
   @impl true
   def handle_info(:serving_finished, _ctx, state) do
     {[end_of_stream: :output], state}
+  end
+
+  @impl true
+  def handle_info({:DOWN, _ref, :process, server_pid, reason}, _ctx, %{finished?: finished?, server_pid: server_pid}) do
+    if finished? do
+      {[end_of_stream: :output], state}
+    else
+      raise "Unexpected serving exit with reason: #{inspect(reason)}"
+    end
   end
 
   @impl true
