@@ -18,9 +18,7 @@ defmodule Membrane.Whisper.ModelServer do
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
 
   @impl true
-  def init(opts) do
-    {:ok, opts, {:continue, :serving_start}}
-  end
+  def init(opts), do: {:ok, opts, {:continue, :serving_start}}
 
   @impl true
   def handle_continue(:serving_start, %{serving: serving, parent_pid: parent_pid} = state) do
@@ -28,7 +26,7 @@ defmodule Membrane.Whisper.ModelServer do
       Stream.resource(
         fn ->
           send(parent_pid, {:serving_pid, self()})
-          nil
+          :ok
         end,
         fn state ->
           send(parent_pid, :serving_demand)
@@ -38,16 +36,12 @@ defmodule Membrane.Whisper.ModelServer do
             :halt -> {:halt, state}
           end
         end,
-        fn _state -> nil end
+        fn state -> state end
       )
 
-    Nx.Serving.run(
-      serving,
-      stream
-    )
-    |> Enum.each(fn output ->
-      send(parent_pid, {:serving_output, output})
-    end)
+    serving
+    |> Nx.Serving.run(stream)
+    |> Enum.each(&send(parent_pid, {:serving_output, &1}))
 
     # Processing only finishes if the Stream received an explicit `:halt` from the filter.
     # Sending a message back so the filter knows it can EOS.

@@ -53,7 +53,8 @@ defmodule Whisper.Demo.MP4.LivePipeline do
       tokenizer,
       generation_config,
       stream: true,
-      chunk_num_seconds: 8
+      chunk_num_seconds: 8,
+      context_num_seconds: 0
     )
   end
 
