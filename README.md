@@ -15,7 +15,7 @@ The package can be installed by adding `membrane_whisper_plugin` to your list of
 ```elixir
 def deps do
   [
-    {:membrane_whisper_plugin, "~> 0.1.0"}
+    {:membrane_whisper_plugin, "~> 0.1.1"}
   ]
 end
 ```
