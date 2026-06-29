@@ -38,7 +38,7 @@ defmodule Membrane.Whisper.Mixfile do
       {:membrane_raw_audio_format, "~> 0.12.0"},
       {:bumblebee, "~> 0.6.0"},
       {:exla, ">= 0.0.0"},
-      {:ex_doc, "~> 0.40", only: :dev, runtime: false},
+      {:ex_doc, ">= 0.40.0", only: :dev, runtime: false},
       {:dialyxir, ">= 0.0.0", only: :dev, runtime: false},
       {:credo, ">= 0.0.0", only: :dev, runtime: false},
       {:membrane_file_plugin, "~> 0.17.0", only: :test},
