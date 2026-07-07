@@ -22,7 +22,6 @@ defmodule Membrane.Whisper.Integration.SimpleTest do
         featurizer,
         tokenizer,
         generation_config,
-        defn_options: [compiler: EXLA],
         stream: true,
         chunk_num_seconds: 10,
         context_num_seconds: 0,

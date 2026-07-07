@@ -1,13 +1,23 @@
+# EMLX (MLX) on Apple Silicon, EXLA everywhere else
+apple_silicon? =
+  :os.type() == {:unix, :darwin} and
+    :erlang.system_info(:system_architecture) |> List.to_string() |> String.starts_with?("aarch64")
+
+{nx_backend_dep, nx_backend} =
+  if apple_silicon?,
+    do: {{:emlx, "~> 0.4.0"}, {EMLX.Backend, device: :gpu}},
+    else: {{:exla, "~> 0.12"}, EXLA.Backend}
+
 Mix.install(
   [
     {:membrane_whisper_plugin, path: Path.join(__DIR__, "..")},
     {:membrane_portaudio_plugin, "~> 0.19.4"},
     {:membrane_core, "~> 1.0"},
-    {:exla, "~> 0.10"}
+    nx_backend_dep
   ],
   config: [
     nx: [
-      default_backend: EXLA.Backend
+      default_backend: nx_backend
     ]
   ]
 )

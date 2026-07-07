@@ -35,14 +35,30 @@ defmodule Membrane.Whisper.Mixfile do
     [
       {:membrane_core, "~> 1.0"},
       {:membrane_raw_audio_format, "~> 0.12.0"},
-      {:bumblebee, "~> 0.6.0"},
-      {:exla, ">= 0.0.0"},
+      {:bumblebee, git: "https://github.com/kidq330/bumblebee.git", branch: "kidq330/wave2vec2"},
+      nx_backend_dep(),
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:dialyxir, ">= 0.0.0", only: :dev, runtime: false},
       {:credo, ">= 0.0.0", only: :dev, runtime: false},
       {:membrane_file_plugin, "~> 0.17.0", only: :test},
       {:membrane_raw_audio_parser_plugin, "~> 0.4.0", only: :test}
     ]
+  end
+
+  # EMLX (MLX) on Apple Silicon, EXLA everywhere else
+  defp nx_backend_dep do
+    if apple_silicon?() do
+      {:emlx, "~> 0.4.0"}
+    else
+      {:exla, ">= 0.0.0"}
+    end
+  end
+
+  defp apple_silicon? do
+    :os.type() == {:unix, :darwin} and
+      :erlang.system_info(:system_architecture)
+      |> List.to_string()
+      |> String.starts_with?("aarch64")
   end
 
   defp dialyzer() do
