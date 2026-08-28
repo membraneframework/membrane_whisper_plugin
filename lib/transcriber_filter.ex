@@ -2,14 +2,45 @@ defmodule Membrane.Whisper.TranscriberFilter do
   @moduledoc """
   Element that wraps a `Bumblebee.Audio.speech_to_text_whisper/4` serving, producing transcripts of the input audio.
 
+  The transcripts are sent via the `:output` pad along with the audio buffers, as `Membrane.Whisper.TranscriptEvent` events.
+  A sequence of audio buffers is followed by an event containing the transcript for said sequence, e.g.:
+  `<audio frames 0s - 10s> <event with transciption of 0s-10s> <audio frames 10s-20s> <event with transcription of 10s-20s> <audio frames 20s-30s> ...`
+
   The serving must be provided by the user. For details on the configuration of the serving, see the description of the `serving` option of this element.
+
+  ## Audio/transcript ordering guarantee
+
+  Each `Membrane.Whisper.TranscriptEvent` is emitted *after* all audio buffers it
+  corresponds to have been forwarded downstream. Audio is buffered internally and
+  released in sync with each transcript event:
+
+  - With `timestamps: :segments` in the serving, the `end_timestamp_seconds` field
+    of each event is used as an absolute byte offset into the buffered audio.
+    This is correct regardless of how many windows `Nx.Serving` has pre-consumed
+    during inference (e.g. due to JIT warm-up).
+
+  - Without timestamps, all audio accumulated since the previous event is released
+    together with the event. This requires `context_num_seconds: 0` in the serving;
+    with the default overlap (`chunk_num_seconds / 6`) the `at_least_2?` guard in
+    Bumblebee delays the first transcript until two windows have accumulated,
+    causing excess audio to be paired with it.
+
+        Bumblebee.Audio.speech_to_text_whisper(whisper, featurizer, tokenizer,
+          generation_config, stream: true, chunk_num_seconds: 8,
+          context_num_seconds: 0)
+
+  ## Latency
+
+  Audio is held until its transcript arrives, introducing a delay of approximately
+  `chunk_num_seconds` before any audio reaches downstream elements.
   """
 
   use Membrane.Filter
 
-  require Membrane.Logger
-
   alias Membrane.RawAudio
+
+  # f32le @ 16 kHz mono
+  @bytes_per_second 16_000 * 4
 
   def_input_pad :input,
     flow_control: :manual,
@@ -27,6 +58,7 @@ defmodule Membrane.Whisper.TranscriberFilter do
                 The result of a call to `Bumblebee.Audio.speech_to_text_whisper/4`, with the following options set:
                 - `:stream`: Must be `true`. Enables output streaming, e.g. it makes calls to `Nx.Serving.run/2` return an Elixir Stream that will return outputs from Whisper.
                 - `:chunk_num_seconds`: Must be set. Enables long-form transcription by splitting the input into chunks of the given length. This means that calls to the serving with `Nx.Serving.run/2` will only accept enumerable input when `:chunk_num_seconds` is set.
+                - `:context_num_seconds`: Must be set to 0 for proper synchronisation with streamed audio.
 
                 Example of creating a compatible serving:
                 ```elixir
@@ -43,7 +75,8 @@ defmodule Membrane.Whisper.TranscriberFilter do
                     tokenizer,
                     generation_config,
                     stream: true,
-                    chunk_num_seconds: 10
+                    chunk_num_seconds: 10,
+                    context_num_seconds: 0
                   )
                   ```
 
@@ -64,6 +97,7 @@ defmodule Membrane.Whisper.TranscriberFilter do
                     generation_config,
                     stream: true,
                     chunk_num_seconds: 10,
+                    context_num_seconds: 0,
                     timestamps: :segments
                   )
                   ```
@@ -78,10 +112,17 @@ defmodule Membrane.Whisper.TranscriberFilter do
       options
       |> Map.from_struct()
       |> Map.merge(%{
+        server_pid: nil,
         serving_pid: nil,
         serving_demand?: false,
         output_demand?: false,
-        finished?: false
+        finished?: false,
+        audio_buffer: [],
+        released_bytes: 0,
+        pending_events: [],
+        drain_target: nil,
+        drain_event: nil,
+        serving_finished?: false
       })
 
     {[], state}
@@ -89,39 +130,60 @@ defmodule Membrane.Whisper.TranscriberFilter do
 
   @impl true
   def handle_setup(ctx, %{serving: serving} = state) do
-    {:ok, _server} =
-      Membrane.UtilitySupervisor.start_link_child(
+    {:ok, server_pid} =
+      Membrane.UtilitySupervisor.start_child(
         ctx.utility_supervisor,
         {Membrane.Whisper.ModelServer, %{serving: serving, parent_pid: self()}}
       )
 
-    {[], state}
+    Process.monitor(server_pid)
+
+    {[], %{state | server_pid: server_pid}}
+  end
+
+  @impl true
+  def handle_stream_format(:input, format, _ctx, state) do
+    {[stream_format: {:output, format}], state}
   end
 
   @impl true
   def handle_demand(:output = _pad, _size, :buffers, ctx, state) do
     state = %{state | output_demand?: true}
-    actions = maybe_demand(state.output_demand?, state.serving_demand?, ctx.pads)
-    {actions, state}
+    {drain_actions, state} = drain_for_demand(state, [])
+
+    if Enum.any?(drain_actions, &match?({:buffer, _}, &1)) do
+      send(self(), :continue_drain)
+    end
+
+    input_actions =
+      if drain_actions == [] and state.serving_demand? do
+        case ctx.pads do
+          %{input: %{demand: 0}} -> [demand: {:input, 1}]
+          _ -> []
+        end
+      else
+        []
+      end
+
+    {drain_actions ++ input_actions, state}
   end
 
   @impl true
-  def handle_buffer(
-        :input = _pad,
-        buffer,
-        _ctx,
-        %{serving_demand?: true, output_demand?: true} = state
-      ) do
+  def handle_buffer(:input = _pad, buffer, _ctx, %{serving_demand?: true} = state) do
     send(state.serving_pid, {:serving_receive, buffer.payload})
-
-    {[buffer: {:output, buffer}, redemand: :output],
-     %{state | serving_demand?: false, output_demand?: false}}
+    {[], %{state | serving_demand?: false, audio_buffer: state.audio_buffer ++ [buffer]}}
   end
 
   @impl true
   def handle_info(:serving_demand, ctx, %{finished?: false} = state) do
     state = %{state | serving_demand?: true}
-    actions = maybe_demand(state.output_demand?, state.serving_demand?, ctx.pads)
+
+    actions =
+      case ctx.pads do
+        %{input: %{demand: 0}} -> [demand: {:input, 1}]
+        _ -> []
+      end
+
     {actions, state}
   end
 
@@ -137,13 +199,49 @@ defmodule Membrane.Whisper.TranscriberFilter do
   end
 
   @impl true
+  def handle_info(:continue_drain, _ctx, state) do
+    {[redemand: :output], state}
+  end
+
+  @impl true
   def handle_info({:serving_output, whisper_output}, _ctx, state) do
-    {[event: {:output, struct!(Membrane.Whisper.TranscriptEvent, whisper_output)}], state}
+    event = struct!(Membrane.Whisper.TranscriptEvent, whisper_output)
+
+    target_bytes =
+      case event.end_timestamp_seconds do
+        nil -> state.released_bytes + buffer_bytes(state.audio_buffer)
+        end_ts -> round(end_ts * @bytes_per_second)
+      end
+
+    state = %{state | pending_events: state.pending_events ++ [{target_bytes, event}]}
+    drain(state)
   end
 
   @impl true
   def handle_info(:serving_finished, _ctx, state) do
-    {[end_of_stream: :output], state}
+    drain(%{state | serving_finished?: true})
+  end
+
+  @impl true
+  def handle_info(
+        {:DOWN, _ref, :process, server_pid, :normal},
+        _ctx,
+        %{server_pid: server_pid} = state
+      ) do
+    {[], state}
+  end
+
+  @impl true
+  def handle_info(
+        {:DOWN, _ref, :process, server_pid, reason},
+        _ctx,
+        %{finished?: finished?, server_pid: server_pid} = state
+      ) do
+    if finished? do
+      drain(%{state | serving_finished?: true})
+    else
+      raise "Unexpected serving exit with reason: #{inspect(reason)}"
+    end
   end
 
   @impl true
@@ -151,14 +249,99 @@ defmodule Membrane.Whisper.TranscriberFilter do
     {[], %{state | finished?: true}}
   end
 
-  @spec maybe_demand(
-          output_demand? :: boolean(),
-          serving_demand? :: boolean(),
-          pads :: %{atom() => Membrane.Element.PadData.t()}
-        ) :: list(Membrane.Element.Action.demand())
-  # We only demand on the input pad if it doesn't already have an awaiting demand to satisfy
-  defp maybe_demand(true, true, %{input: %Membrane.Element.PadData{demand: 0}}),
-    do: [demand: {:input, 1}]
+  # No downstream demand — nothing to do.
+  defp drain(%{output_demand?: false} = state), do: {[], state}
 
-  defp maybe_demand(_output_demand?, _serving_demand?, _input_demand), do: []
+  # Active drain in progress — emit the next buffer toward drain_target.
+  defp drain(%{drain_target: target} = state) when is_integer(target) do
+    emit_up_to(state, target)
+  end
+
+  # Start draining the next pending event.
+  defp drain(%{pending_events: [{target, event} | rest]} = state) do
+    drain(%{state | drain_target: target, drain_event: event, pending_events: rest})
+  end
+
+  # All events drained, serving done — flush remaining audio one buffer at a time.
+  defp drain(%{serving_finished?: true, audio_buffer: [buf | rest]} = state) do
+    state = %{state |
+      audio_buffer: rest,
+      released_bytes: state.released_bytes + byte_size(buf.payload),
+      output_demand?: false
+    }
+
+    {[buffer: {:output, buf}, redemand: :output], state}
+  end
+
+  # All events drained, buffer empty — end of stream.
+  defp drain(%{serving_finished?: true, audio_buffer: []} = state) do
+    {[end_of_stream: :output], %{state | output_demand?: false}}
+  end
+
+  # Waiting for transcript events.
+  defp drain(state), do: {[], state}
+
+  defp drain_for_demand(state, acc) do
+    {actions, state} = drain(state)
+    actions = Keyword.delete(actions, :redemand)
+    has_buffer = Enum.any?(actions, &match?({:buffer, _}, &1))
+    has_eos = Enum.any?(actions, &match?({:end_of_stream, _}, &1))
+    all_actions = acc ++ actions
+
+    cond do
+      actions == [] -> {all_actions, state}
+      has_buffer or has_eos -> {all_actions, state}
+      true -> drain_for_demand(%{state | output_demand?: true}, all_actions)
+    end
+  end
+
+  # Emit one buffer (splitting if needed) toward the target byte offset.
+  defp emit_up_to(state, target) do
+    remaining = target - state.released_bytes
+
+    cond do
+      remaining <= 0 ->
+        event = state.drain_event
+        state = %{state | drain_target: nil, drain_event: nil, output_demand?: false}
+        {[event: {:output, event}, redemand: :output], state}
+
+      state.audio_buffer == [] and state.serving_finished? ->
+        # Target exceeds available audio (e.g. last segment timestamp rounds past EOF).
+        event = state.drain_event
+        state = %{state | drain_target: nil, drain_event: nil, output_demand?: false}
+        {[event: {:output, event}, redemand: :output], state}
+
+      state.audio_buffer == [] ->
+        # Audio not yet fully buffered — wait.
+        {[], state}
+
+      true ->
+        [%Membrane.Buffer{payload: payload} = buf | rest] = state.audio_buffer
+        buf_size = byte_size(payload)
+
+        if buf_size <= remaining do
+          state = %{state |
+            audio_buffer: rest,
+            released_bytes: state.released_bytes + buf_size,
+            output_demand?: false
+          }
+
+          {[buffer: {:output, buf}, redemand: :output], state}
+        else
+          <<kept::binary-size(remaining), tail::binary>> = payload
+
+          state = %{state |
+            audio_buffer: [%{buf | payload: tail} | rest],
+            released_bytes: state.released_bytes + remaining,
+            output_demand?: false
+          }
+
+          {[buffer: {:output, %{buf | payload: kept}}, redemand: :output], state}
+        end
+    end
+  end
+
+  defp buffer_bytes(buffer) do
+    Enum.reduce(buffer, 0, &(byte_size(&1.payload) + &2))
+  end
 end
