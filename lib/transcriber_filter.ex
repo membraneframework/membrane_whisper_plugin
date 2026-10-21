@@ -85,7 +85,6 @@ defmodule Membrane.Whisper.TranscriberFilter do
       options
       |> Map.from_struct()
       |> Map.merge(%{
-        server_pid: nil,
         serving_pid: nil,
         serving_demand?: false,
         output_demand?: false,
@@ -97,15 +96,13 @@ defmodule Membrane.Whisper.TranscriberFilter do
 
   @impl true
   def handle_setup(ctx, %{serving: serving} = state) do
-    {:ok, server_pid} =
-      Membrane.UtilitySupervisor.start_child(
+    {:ok, _runner} =
+      Membrane.UtilitySupervisor.start_link_child(
         ctx.utility_supervisor,
-        {Membrane.Whisper.ModelServer, %{serving: serving, parent_pid: self()}}
+        {Membrane.Whisper.ServingRunner, {serving, self()}}
       )
 
-    Process.monitor(server_pid)
-
-    {[], %{state | server_pid: server_pid}}
+    {[], state}
   end
 
   @impl true
