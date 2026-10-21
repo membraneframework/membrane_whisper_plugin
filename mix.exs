@@ -8,7 +8,7 @@ defmodule Membrane.Whisper.Mixfile do
     [
       app: :membrane_whisper_plugin,
       version: @version,
-      elixir: "~> 1.13",
+      elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -35,7 +35,7 @@ defmodule Membrane.Whisper.Mixfile do
     [
       {:membrane_core, "~> 1.0"},
       {:membrane_raw_audio_format, "~> 0.12.0"},
-      {:bumblebee, "~> 0.6.0"},
+      {:bumblebee, "~> 0.7.0"},
       {:exla, ">= 0.0.0"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:dialyxir, ">= 0.0.0", only: :dev, runtime: false},
