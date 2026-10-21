@@ -4,7 +4,7 @@ defmodule Membrane.Whisper.TranscriberFilter do
 
   The transcripts are sent via the `:output` pad along with the audio buffers, as `Membrane.Whisper.TranscriptEvent` events.
   A sequence of audio buffers is followed by an event containing the transcript for said sequence, e.g.:
-  `<audio frames 0s - 10s> <event with transciption of 0s-10s> <audio frames 10s-20s> <event with transcription of 10s-20s> <audio frames 20s-30s> ...`
+  `<audio frames 0s - 10s> <event with transcription of 0s-10s> <audio frames 10s-20s> <event with transcription of 10s-20s> <audio frames 20s-30s> ...`
 
   The serving must be provided by the user. For details on the configuration of the serving, see the description of the `serving` option of this element.
   """
