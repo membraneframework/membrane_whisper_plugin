@@ -157,28 +157,6 @@ defmodule Membrane.Whisper.TranscriberFilter do
   end
 
   @impl true
-  def handle_info(
-        {:DOWN, _ref, :process, server_pid, :normal},
-        _ctx,
-        %{server_pid: server_pid} = state
-      ) do
-    {[], state}
-  end
-
-  @impl true
-  def handle_info(
-        {:DOWN, _ref, :process, server_pid, reason},
-        _ctx,
-        %{finished?: finished?, server_pid: server_pid} = state
-      ) do
-    if finished? do
-      {[end_of_stream: :output], state}
-    else
-      raise "Unexpected serving exit with reason: #{inspect(reason)}"
-    end
-  end
-
-  @impl true
   def handle_end_of_stream(:input, _ctx, state) do
     {[], %{state | finished?: true}}
   end
