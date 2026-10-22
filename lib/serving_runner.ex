@@ -5,9 +5,9 @@ defmodule Membrane.Whisper.ServingRunner do
 
   # Bumblebee's Whisper streaming API expects an Elixir Stream input, and produces an Elixir Stream output.
   # To provide an Elixir Stream, the serving is wrapped in a separate process with its own mailbox
-  # that `Membrane.Whisper.TranscriberFilter` can `send` buffers to.
+  # that `parent` can `send` buffers to.
 
-  # When a transcript is ready it is sent back to `Membrane.Whisper.TranscriberFilter`.
+  # When a transcript is ready it is sent back to `parent`.
 
   # Graceful termination is handled by halting the Stream
   # to flush the rest of the transcript from the serving.
