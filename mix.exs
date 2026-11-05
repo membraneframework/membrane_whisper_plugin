@@ -1,14 +1,14 @@
 defmodule Membrane.Whisper.Mixfile do
   use Mix.Project
 
-  @version "0.1.1"
+  @version "0.2.0"
   @github_url "https://github.com/membraneframework/membrane_whisper_plugin"
 
   def project do
     [
       app: :membrane_whisper_plugin,
       version: @version,
-      elixir: "~> 1.13",
+      elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -36,8 +36,8 @@ defmodule Membrane.Whisper.Mixfile do
     [
       {:membrane_core, "~> 1.0"},
       {:membrane_raw_audio_format, "~> 0.12.0"},
-      {:bumblebee, "~> 0.6.0"},
-      {:exla, ">= 0.0.0"},
+      {:bumblebee, "~> 0.7.0"},
+      {:exla, ">= 0.0.0", only: :test},
       {:ex_doc, ">= 0.40.0", only: :dev, runtime: false},
       {:dialyxir, ">= 0.0.0", only: :dev, runtime: false},
       {:credo, ">= 0.0.0", only: :dev, runtime: false},
