@@ -1,7 +1,7 @@
 defmodule Membrane.Whisper.Mixfile do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.1.1"
   @github_url "https://github.com/membraneframework/membrane_whisper_plugin"
 
   def project do
